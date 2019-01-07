@@ -10,6 +10,10 @@ import (
 	"github.com/atlassian/voyager"
 	orch_v1 "github.com/atlassian/voyager/pkg/apis/orchestration/v1"
 	stateclient_fake "github.com/atlassian/voyager/pkg/orchestration/client/fake"
+	"github.com/atlassian/voyager/pkg/orchestration/wiring"
+	"github.com/atlassian/voyager/pkg/orchestration/wiring/legacy"
+	"github.com/atlassian/voyager/pkg/orchestration/wiring/registry"
+	"github.com/atlassian/voyager/pkg/orchestration/wiring/wiringplugin"
 	"github.com/atlassian/voyager/pkg/util/testutil"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -50,6 +54,7 @@ func testHandleProcessResult(t *testing.T, filePrefix string) {
 		Clock:                   clock.NewFakeClock(time.Unix(0, 0)),
 		StateClient:             stateClient,
 		StateTransitionsCounter: stateTransitionsCounter,
+		Entangler:               entanglerForTests(),
 	}
 
 	_, _, err = c.handleProcessResult(logger, state, bundle, false, nil)
@@ -115,6 +120,7 @@ func TestHandleProcessResultDoesNotUpdateIfNoChange(t *testing.T) {
 		Clock:                   clock.NewFakeClock(time.Unix(0, 0)),
 		StateClient:             stateClient,
 		StateTransitionsCounter: stateTransitionsCounter,
+		Entangler:               entanglerForTests(),
 	}
 
 	_, _, err = c.handleProcessResult(logger, state, existingBundle, false, nil)
@@ -153,6 +159,7 @@ func TestHandleProcessResultUpdatesIfResourcesChange(t *testing.T) {
 		Clock:                   clock.NewFakeClock(time.Unix(0, 0)),
 		StateClient:             stateClient,
 		StateTransitionsCounter: stateTransitionsCounter,
+		Entangler:               entanglerForTests(),
 	}
 
 	_, _, err = c.handleProcessResult(logger, state, existingBundle, false, nil)
@@ -180,4 +187,32 @@ func TestStateResourceName(t *testing.T) {
 	for _, test := range tests {
 		assert.Equal(t, stateResourceName(test.Input), test.Output)
 	}
+}
+
+func entanglerForTests() *wiring.Entangler {
+	return &wiring.Entangler{
+		Plugins: registry.KnownWiringPlugins,
+		ClusterLocation: voyager.ClusterLocation{
+			Account: legacy.TestAccountName,
+			Region:  legacy.TestRegion,
+			EnvType: legacy.TestEnvironment,
+		},
+		ClusterConfig: wiringplugin.ClusterConfig{
+			ClusterDomainName: "internal.ap-southeast-2.kitt-integration.kitt-inf.net",
+			KittClusterEnv:    "test",
+			Kube2iamAccount:   "test",
+		},
+		TagNames: wiring.TagNames{
+			ServiceNameTag:     "service_name",
+			BusinessUnitTag:    "business_unit",
+			ResourceOwnerTag:   "resource_owner",
+			PlatformTag:        "platform",
+			EnvironmentTypeTag: "environment_type",
+		},
+		GetLegacyConfigFunc: getTestLegacyConfig,
+	}
+}
+
+func getTestLegacyConfig(location voyager.Location) *legacy.Config {
+	return legacy.GetLegacyConfigFromMap(legacy.TestLegacyConfigs, location)
 }

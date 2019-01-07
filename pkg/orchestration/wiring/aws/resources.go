@@ -30,9 +30,9 @@ const (
 // All osb-aws-provider resources are 'almost' the same, differing only in the service/plan names,
 // what they need passed in the ServiceEnvironment.
 var ResourceTypes = map[voyager.ResourceType]wiringplugin.WiringPlugin{
-	DynamoDB: Resource(DynamoDB, DynamoDBName, DynamoDBClass, DynamoDBPlan, dynamoDbServiceEnvironment, DynamoPrefix),
-	S3:       Resource(S3, S3Name, S3Class, S3Plan, s3ServiceEnvironment, S3Prefix),
-	Cfn:      Resource(Cfn, CfnName, CfnClass, CfnPlan, CfnServiceEnvironment, CfnPrefix),
+	DynamoDB: wiringplugin.StatusAdapter(Resource(DynamoDB, DynamoDBName, DynamoDBClass, DynamoDBPlan, dynamoDbServiceEnvironment, DynamoPrefix).WireUp),
+	S3:       wiringplugin.StatusAdapter(Resource(S3, S3Name, S3Class, S3Plan, s3ServiceEnvironment, S3Prefix).WireUp),
+	Cfn:      wiringplugin.StatusAdapter(Resource(Cfn, CfnName, CfnClass, CfnPlan, CfnServiceEnvironment, CfnPrefix).WireUp),
 }
 
 func dynamoDbServiceEnvironment(env *oap.ServiceEnvironment) *oap.ServiceEnvironment {

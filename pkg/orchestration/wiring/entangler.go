@@ -32,9 +32,9 @@ const (
 	wiringResourcesDirectlyIsDeprecatedMsg = "wiring dependencies as SmithResources is deprecated, use ResourceContracts instead"
 )
 
-// EntanglerContext contains information that is required by autowiring.
+// EntangleContext contains information that is required by autowiring.
 // Everything in this context can only be obtained by reading Kubernetes objects.
-type EntanglerContext struct {
+type EntangleContext struct {
 	// ServiceName
 	ServiceName voyager.ServiceName
 
@@ -43,6 +43,22 @@ type EntanglerContext struct {
 
 	// Config is the configuration pulled from the ConfigMap
 	Config map[string]string
+}
+
+// StatusContext contains information that is required by status autowiring.
+type StatusContext struct {
+	// BundleResources is the list of resources and their statuses in Bundle.
+	// Only resources for a particular StateResource are in the list.
+	BundleResources []BundleResource
+	// PluginStatuses is a list of statuses for Smith plugins used in a Bundle.
+	PluginStatuses []smith_v1.PluginStatus `json:"pluginStatuses,omitempty"`
+}
+
+type BundleResource struct {
+	// Object is the actual object that has been created as the result of processing an Orchestration StateResource.
+	Resource smith_v1.Resource `json:"object"`
+	// Status is the status of that object as reported by Smith.
+	Status smith_v1.ResourceStatusData `json:"status"`
 }
 
 type TagNames struct {
@@ -81,7 +97,7 @@ func parseConfigMap(data map[string]string) (*orch_meta.ServiceProperties, error
 	return &serviceProperties, nil
 }
 
-func (en *Entangler) Entangle(state *orch_v1.State, context *EntanglerContext) (*smith_v1.Bundle, bool /*retriable*/, error) {
+func (en *Entangler) Entangle(state *orch_v1.State, context *EntangleContext) (*smith_v1.Bundle, bool /*retriable*/, error) {
 	g, sorted, err := sortStateResources(state.Spec.Resources)
 	if err != nil {
 		return nil, false, err
@@ -174,6 +190,29 @@ func (en *Entangler) Entangle(state *orch_v1.State, context *EntanglerContext) (
 	}
 
 	return bundle, false, nil
+}
+
+func (en *Entangler) Status(resource *orch_v1.StateResource, context *StatusContext) (orch_v1.ResourceStatusData, bool /*retriable*/, error) {
+	plugin, ok := en.Plugins[resource.Type]
+	if !ok {
+		return orch_v1.ResourceStatusData{}, false, errors.New("unknown resource type")
+	}
+	// We don't want to expose types from plugins to the entangler consumer so that they are decoupled.
+	bundleResources := make([]wiringplugin.BundleResource, len(context.BundleResources))
+	for i, res := range context.BundleResources {
+		bundleResources[i] = wiringplugin.BundleResource{
+			Resource: res.Resource,
+			Status:   res.Status,
+		}
+	}
+	result, retriable, err := plugin.Status(resource, &wiringplugin.StatusContext{
+		BundleResources: bundleResources,
+		PluginStatuses:  context.PluginStatuses,
+	})
+	if err != nil {
+		return orch_v1.ResourceStatusData{}, retriable, errors.Wrap(err, "error invoking autowiring plugin")
+	}
+	return result.ResourceStatusData, false, nil
 }
 
 // postProcessResources converts resources to Unstructured and cleans up some fields:
