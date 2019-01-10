@@ -73,7 +73,7 @@ type ClusterLocation struct {
 }
 
 func (cl ClusterLocation) String() string {
-	// This echoes the domain name form in Micros.
+	// This echoes the domain name form in Micros
 	return fmt.Sprintf("%s.%s (account: %s)", cl.Region, cl.EnvType, cl.Account)
 }
 
