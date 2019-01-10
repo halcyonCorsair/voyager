@@ -134,8 +134,12 @@ func WireUp(resource *orch_v1.StateResource, context *wiringplugin.WiringContext
 	for _, dep := range context.Dependencies {
 		bound := false
 
-		if bindableShape, ok := dep.Contract.FindShape(knownshapes.BindableEnvironmentVariablesShape); ok {
-			resourceReference := bindableShape.(*knownshapes.BindableEnvironmentVariables).Data.ServiceInstanceName
+		bindableShape, found, err := knownshapes.FindBindableEnvironmentVariablesShape(dep.Contract.Shapes)
+		if err != nil {
+			return nil, false, err
+		}
+		if found {
+			resourceReference := bindableShape.Data.ServiceInstanceName
 			// We don't want anything that depends on compute to see our bindings - exposed: false
 			binding := wiringutil.ConsumerProducerServiceBindingV2(resource.Name, dep.Name, resourceReference, false)
 			smithResources = append(smithResources, binding)

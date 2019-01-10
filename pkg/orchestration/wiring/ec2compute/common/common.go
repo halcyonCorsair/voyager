@@ -139,8 +139,12 @@ func WireUp(microServiceNameInSpec, ec2ComputePlanName string, stateResource *or
 
 	for _, dependency := range dependencies {
 		bound := false
-		if bindableShape, ok := dependency.Contract.FindShape(knownshapes.BindableEnvironmentVariablesShape); ok {
-			resourceReference := bindableShape.(*knownshapes.BindableEnvironmentVariables).Data.ServiceInstanceName
+		typedBindableShape, found, err := knownshapes.FindBindableEnvironmentVariablesShape(dependency.Contract.Shapes)
+		if err != nil {
+			return nil, false, err
+		}
+		if found {
+			resourceReference := typedBindableShape.Data.ServiceInstanceName
 			bindingResources = append(bindingResources, wiringutil.ConsumerProducerServiceBindingV2(stateResource.Name, dependency.Name, resourceReference, false))
 			continue
 		}

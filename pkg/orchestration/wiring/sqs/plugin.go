@@ -52,18 +52,19 @@ func WireUp(stateResource *orch_v1.StateResource, context *wiringplugin.WiringCo
 	var references []smith_v1.Reference
 
 	for _, dependency := range context.Dependencies {
-		snsShape, hasSnsShape := dependency.Contract.FindShape(knownshapes.SnsSubscribableShape)
-		if !hasSnsShape {
+		snsShape, found, err := knownshapes.FindSnsSubscribableShape(dependency.Contract.Shapes)
+		if err != nil {
+			return nil, false, err
+		}
+		if !found {
 			return nil, false, errors.Errorf("sqs is allowed to depend only on sns resource, but SnsSubscribableShape was not found in %q", dependency.Name)
 		}
-		snsSubscribableData := snsShape.(*knownshapes.SnsSubscribable).Data
-
-		resourceRef := snsSubscribableData.BindableShapeStruct.ServiceInstanceName
+		resourceRef := snsShape.Data.ServiceInstanceName
 		serviceBinding := wiringutil.ConsumerProducerServiceBindingV2(stateResource.Name, dependency.Name, resourceRef, false)
 		wiredResources = append(wiredResources, serviceBinding)
 
 		referenceName := wiringutil.ReferenceName(serviceBinding.SmithResource.Name, snsTopicArnReferenceNameSuffix)
-		topicArnRef := snsSubscribableData.TopicARN.ToReference(referenceName, serviceBinding.SmithResource.Name)
+		topicArnRef := snsShape.Data.TopicARN.ToReference(referenceName, serviceBinding.SmithResource.Name)
 		references = append(references, topicArnRef)
 		snsSubscriptions = append(snsSubscriptions, snsSubscription{
 			TopicArn:   topicArnRef.Ref(),
